@@ -5,6 +5,11 @@
   <p><strong>Detect web technologies from HAR files or live pages.</strong></p>
 </div>
 
+<div align="center">
+  <img src="docs/web-landing.png" alt="Web UI landing" width="600" />
+  <p><em>FastAPI web UI: capture or analyze, see results and history</em></p>
+</div>
+
 ---
 
 ## Overview
@@ -82,6 +87,16 @@ python -m py_wappalyzer.web  # serves on http://localhost:8000
   - API bearer: set `WAPPALYZER_API_BEARER=token`
   - Web basic auth: set `WAPPALYZER_WEB_USER=user` and `WAPPALYZER_WEB_PASS=pass`
 
+<div align="center">
+  <img src="docs/har-view.png" alt="HAR and results" width="600" />
+  <p><em>Analyze HAR or live capture; see detected tech and metadata</em></p>
+</div>
+
+<div align="center">
+  <img src="docs/screenshot-view.png" alt="Screenshot view" width="600" />
+  <p><em>Captured screenshot displayed alongside detections</em></p>
+</div>
+
 ## Docker
 
 Build and run the API/UI with Patchright + Chromium baked in:
@@ -90,6 +105,7 @@ Build and run the API/UI with Patchright + Chromium baked in:
 docker build -t py-wappalyzer .
 docker run -p 8000:8000 \
   -e WAPPALYZER_WEB_USER=user -e WAPPALYZER_WEB_PASS=pass \
+  -v pywappalyzer-data:/app/data \  # persist fingerprints, DB, captures, screenshots
   py-wappalyzer
 ```
 

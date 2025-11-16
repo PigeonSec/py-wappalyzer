@@ -36,6 +36,8 @@ RUN patchright install chromium
 
 COPY . .
 
+VOLUME ["/app/data"]
+
 EXPOSE 8000
 
 CMD ["uvicorn", "py_wappalyzer.web:app", "--host", "0.0.0.0", "--port", "8000"]
