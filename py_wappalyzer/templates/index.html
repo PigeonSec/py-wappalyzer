@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Py-Wappalyzer</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    :root { --card-bg: #1f1f1f; --card-border: #2b2b2b; }
+    [data-bs-theme="light"] { --card-bg: #ffffff; --card-border: #e5e5e5; }
+    .tech-card { background: var(--card-bg); border: 1px solid var(--card-border); }
+    .badge-pill { border-radius: 999px; }
+    .skeleton { background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 37%, rgba(255,255,255,0.04) 63%); background-size: 400% 100%; animation: shimmer 1.4s ease infinite; }
+    @keyframes shimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
+  </style>
+</head>
+<body class="bg-body text-body">
+  <div class="container py-4">
+    <div class="d-flex align-items-center justify-content-between mb-3">
+      <div>
+        <h1 class="h3 mb-1">Py-Wappalyzer</h1>
+        <p class="text-secondary mb-0">Capture a URL (Patchright) or analyze an existing HAR. Results, HARs, and screenshots stay under <code>data/</code>.</p>
+      </div>
+      <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" id="themeToggle">
+        <label class="form-check-label" for="themeToggle">Light mode</label>
+      </div>
+    </div>
+
+    <div class="row g-3">
+      <div class="col-lg-6">
+        <div class="card shadow-sm tech-card">
+          <div class="card-body">
+            <h5 class="card-title">Analyze</h5>
+            <form id="analyze-form" class="vstack gap-2">
+              <div>
+                <label class="form-label" for="url">URL</label>
+                <input id="url" name="url" class="form-control" type="url" placeholder="https://example.com" required />
+              </div>
+              <div>
+                <label class="form-label" for="screenshot">Screenshot path (optional, captured by default)</label>
+                <input id="screenshot" name="screenshot" class="form-control" type="text" placeholder="Leave blank for default path" />
+              </div>
+              <div>
+                <label class="form-label" for="harPath">HAR path (optional, skips capture)</label>
+                <input id="harPath" name="harPath" class="form-control" type="text" placeholder="data/captures/.../file.har" />
+              </div>
+              <button type="submit" class="btn btn-primary mt-1">Run</button>
+            </form>
+            <div id="status" class="mt-3 small text-secondary"></div>
+            <div id="resultMeta" class="mt-2 small"></div>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <div class="card shadow-sm tech-card">
+          <div class="card-body">
+            <div class="d-flex align-items-center justify-content-between">
+              <h5 class="card-title mb-0">Latest results</h5>
+              <button id="refreshHistory" class="btn btn-sm btn-outline-secondary">Refresh</button>
+            </div>
+            <div id="history" class="mt-3 vstack gap-2"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-4" id="resultsContainer"></div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    const form = document.getElementById('analyze-form');
+    const statusEl = document.getElementById('status');
+    const resultsContainer = document.getElementById('resultsContainer');
+    const historyContainer = document.getElementById('history');
+    const themeToggle = document.getElementById('themeToggle');
+
+    const setTheme = (light) => {
+      document.documentElement.setAttribute('data-bs-theme', light ? 'light' : 'dark');
+      themeToggle.checked = light;
+    };
+    setTheme(false);
+    themeToggle.addEventListener('change', () => setTheme(themeToggle.checked));
+
+    const badge = (text, cls = 'secondary') => `<span class="badge rounded-pill text-bg-${cls} me-1 mb-1">${text}</span>`;
+
+    const buildTechCard = (techs) => {
+      if (!techs || !techs.length) {
+        return '<div class="alert alert-info mt-3">No technologies detected.</div>';
+      }
+      return techs.map(t => {
+        const cats = (t.categories || []).map(c => badge(c, 'info')).join(' ');
+        const groups = (t.groups || []).map(g => badge(g, 'warning')).join(' ');
+        const versions = (t.versions && t.versions.length) ? t.versions.join(', ') : 'n/a';
+        const confidence = t.confidence ?? 0;
+        return `
+          <div class="card tech-card mb-2">
+            <div class="card-body">
+              <div class="d-flex align-items-center justify-content-between">
+                <h6 class="mb-0">${t.name}</h6>
+                <span class="badge text-bg-primary">${confidence}%</span>
+              </div>
+              <div class="text-secondary small mt-1">Versions: ${versions}</div>
+              <div class="mt-2">${cats} ${groups}</div>
+            </div>
+          </div>`;
+      }).join('');
+    };
+
+    const buildMeta = (data) => {
+      const parts = [];
+      if (data.har_path) parts.push(`<a href="/files?path=${encodeURIComponent(data.har_path)}" class="link-light link-underline-opacity-50" target="_blank">HAR</a>`);
+      if (data.screenshot_path) parts.push(`<a href="/files?path=${encodeURIComponent(data.screenshot_path)}" class="link-light link-underline-opacity-50" target="_blank">Screenshot</a>`);
+      return parts.join(" • ");
+    };
+
+    const renderResults = (data) => {
+      resultsContainer.innerHTML = `
+        <div class="card tech-card shadow-sm">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center">
+              <div>
+                <div class="small text-secondary">ID ${data.id}</div>
+                <h5 class="mb-0">${data.url}</h5>
+              </div>
+              <div class="text-end small text-secondary">${buildMeta(data)}</div>
+            </div>
+            ${data.screenshot_path ? `<div class="mt-3"><img src="/files?path=${encodeURIComponent(data.screenshot_path)}" alt="Screenshot" class="img-fluid rounded border"></div>` : ''}
+            <div class="mt-3" id="techCards">${buildTechCard(data.results)}</div>
+          </div>
+        </div>`;
+    };
+
+    const renderHistory = async () => {
+      try {
+        const res = await fetch('/api/history');
+        const data = await res.json();
+        if (!Array.isArray(data)) return;
+        historyContainer.innerHTML = data.map(d => {
+          const meta = [];
+          if (d.har_path) meta.push(`<a href="/files?path=${encodeURIComponent(d.har_path)}" class="link-secondary" target="_blank">HAR</a>`);
+          if (d.screenshot_path) meta.push(`<a href="/files?path=${encodeURIComponent(d.screenshot_path)}" class="link-secondary" target="_blank">Screenshot</a>`);
+          const jsonData = encodeURIComponent(JSON.stringify(d));
+          return `
+            <div class="card tech-card p-2 history-item" data-entry="${jsonData}" style="cursor:pointer;">
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  <div class="small text-secondary">#${d.id}</div>
+                  <div>${d.url}</div>
+                </div>
+                <div class="small text-secondary text-end">${meta.join(' • ')}</div>
+              </div>
+            </div>`;
+        }).join('');
+        document.querySelectorAll('.history-item').forEach(el => {
+          el.addEventListener('click', () => {
+            try {
+              const data = JSON.parse(decodeURIComponent(el.dataset.entry));
+              renderResults(data);
+            } catch (err) {
+              console.error(err);
+            }
+          });
+        });
+      } catch (e) {
+        historyContainer.innerHTML = '<div class="text-danger small">Failed to load history.</div>';
+      }
+    };
+
+    document.getElementById('refreshHistory').addEventListener('click', renderHistory);
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      statusEl.textContent = 'Running...';
+      statusEl.className = 'text-secondary small';
+      resultsContainer.innerHTML = '<div class="card tech-card p-3 skeleton" style="height:120px"></div>';
+      try {
+        const url = document.getElementById('url').value;
+        const screenshot_path = document.getElementById('screenshot').value;
+        const har_path = document.getElementById('harPath').value;
+        const body = {};
+        if (url) body.url = url;
+        if (har_path) body.har_path = har_path;
+        if (screenshot_path) body.screenshot_path = screenshot_path;
+        const res = await fetch('/api/analyze', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          statusEl.textContent = data.detail || data.error || 'Error';
+          statusEl.className = 'text-danger small';
+          resultsContainer.innerHTML = '';
+        } else {
+          statusEl.textContent = `Saved as #${data.id} (${data.url})`;
+          statusEl.className = 'text-success small';
+          renderResults(data);
+          renderHistory();
+        }
+      } catch (err) {
+        statusEl.textContent = err.toString();
+        statusEl.className = 'text-danger small';
+        resultsContainer.innerHTML = '';
+      }
+    });
+
+    renderHistory();
+  </script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+beautifulsoup4
+# Optional for URL capture; only needed when using --url or web UI capture
+patchright
+# optional, for web/API (FastAPI served via uvicorn)
+fastapi==0.121.2
+uvicorn==0.38.0
+jinja2

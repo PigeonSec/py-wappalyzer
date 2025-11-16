@@ -1,0 +1,51 @@
+[project]
+name = "py-wappalyzer"
+version = "0.1.0"
+description = "Detect web technologies from HAR or live capture (Patchright-powered)."
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [{name = "Py-Wappalyzer Maintainers"}]
+keywords = ["wappalyzer", "har", "web", "fingerprinting", "patchright", "playwright"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Topic :: Internet :: WWW/HTTP",
+  "Topic :: Software Development :: Testing",
+]
+dependencies = [
+  "beautifulsoup4",
+]
+
+[project.urls]
+Homepage = "https://github.com/py-wappalyzer/py-wappalyzer"
+Repository = "https://github.com/py-wappalyzer/py-wappalyzer"
+Issues = "https://github.com/py-wappalyzer/py-wappalyzer/issues"
+
+[project.optional-dependencies]
+# CLI extras (enables capture via Patchright; beautifulsoup4 is also included for clarity)
+cli = [
+  "beautifulsoup4",
+  "patchright",
+]
+# Web/API extras
+web = [
+  "fastapi==0.121.2",
+  "uvicorn==0.38.0",
+  "jinja2",
+]
+# Full stack (CLI + Web)
+full = [
+  "patchright",
+  "fastapi==0.121.2",
+  "uvicorn==0.38.0",
+  "jinja2",
+]
+
+[project.scripts]
+py-wappalyzer = "py_wappalyzer.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
